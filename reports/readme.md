@@ -1,5 +1,7 @@
-## This report shows the progress of this project across the 10 weeks.
+# Reports
+This folder contains the weekly reports, the final report, any article about the project and the presentations.
 
+## Weekly report
 
 **Week One**
   * Initial proposal draft
