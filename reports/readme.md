@@ -13,6 +13,8 @@ This folder contains the weekly reports, the final report, any article about the
   * Set-up resources
 
 **Week Two**
+  * Set-up some applications for characterization
+  * Started characterization of some apps
 
 **Week Three**
 
