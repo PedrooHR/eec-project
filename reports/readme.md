@@ -3,14 +3,16 @@ This folder contains the weekly reports, the final report, any article about the
 
 ## Weekly report
 
-**Week One**
+**Week Zero**
   * Initial proposal draft
   * Modified proposal draft to include distributed systems
 
-**Week Two**
+**Week One**
   * Set-up of tools in the personal computing
   * Set-up git repository
   * Set-up resources
+
+**Week Two**
 
 **Week Three**
 
@@ -25,5 +27,3 @@ This folder contains the weekly reports, the final report, any article about the
 **Week Eight**
 
 **Week Nine**
-
-**Week Ten**
