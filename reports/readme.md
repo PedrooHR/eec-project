@@ -25,7 +25,7 @@ This folder contains the weekly reports, the final report, any article about the
 **Week Five**
   * Proposal of algorithm change (Using MPI)
   * Characterization of the changes and proposals
-  OBS: Change in the proposal (A6 is moved to W8 and A4 & A5 are extended one week each)
+  * OBS: Change in the proposal (A6 is moved to W8 and A4 & A5 are extended one week each)
 
 **Week Six**
 
