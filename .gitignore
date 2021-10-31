@@ -11,5 +11,5 @@ CTestTestfile.cmake
 _deps
 */build
 */build/*
-characterization/otherapps/src
-characterization/otherapps/src/*
+characterization/apps/otherapps/src
+characterization/apps/otherapps/src/*
