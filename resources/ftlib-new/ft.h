@@ -80,7 +80,7 @@ private:
   int eta_to;    // Heartbeat period counter
   int time_step; // Heartbeat thread loop time step
   int observer, emitter, n_pos;
-  std::thread heartbeat;
+  std::thread heartbeat, alive;
   std::mutex hb_need_repair_mutex, hb_started_mutex;
   std::condition_variable hb_need_repair_cv, hb_started_cv;
   bool hb_started, hb_need_repair;

@@ -78,7 +78,7 @@ FaultTolerance::FaultTolerance(int hb_time, int susp_time,
 
   ft_handler = this;
 
-  eta = hb_time / DEFAULT_HB_TIME_STEP;
+  eta = hb_time;
   delta = susp_time / DEFAULT_HB_TIME_STEP;
   time_step = DEFAULT_HB_TIME_STEP;
   hb_done = false;
@@ -118,9 +118,12 @@ FaultTolerance::~FaultTolerance() {
     pthread_cancel(heartbeat.native_handle());
     heartbeat.join();
     FTDEBUG("[Rank %d FT] Heartbeat thread joined\n", rank);
-  } else {
-    FTDEBUG("[Rank %d FT] Error: heartbeat was not started\n", rank);
-  }
+  }   
+  if (alive.joinable() == true) {
+    pthread_cancel(alive.native_handle());
+    alive.join();
+    FTDEBUG("[Rank %d FT] Alive thread joined\n", rank);
+  } 
 }
 
 // MPI related functions
@@ -214,8 +217,9 @@ void FaultTolerance::hbMain() {
           size - 1);
   hbInit();
   int flag;
-  int message, bc_message[3];
+  int message[3];
   MPI_Status status;
+  alive = std::thread(&FaultTolerance::hbSendAlive, this);
   while (!hb_done) {
     if (hb_need_repair) {
       // Waits for the user thread notifies that repair is complete
@@ -224,102 +228,99 @@ void FaultTolerance::hbMain() {
       hb_need_repair_mutex.unlock();
     }
 
-    // Send an alive message to observer if heartbeat period has passed
-    if (eta_to <= 0)
-      hbSendAlive();
-    else
-      eta_to--;
-
     // If received an alive message from emitter, reset the suspect timeout
-    flag = MPIw_IProbeRecv(&message, 1, MPI_INT, MPI_ANY_SOURCE, TAG_HB_ALIVE,
+    flag = MPIw_IProbeRecv(message, 3, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG,
                            hb_comm, &status);
+
     if (!flag) {
-      if (message == emitter) {
-        hbResetObsTimeout();
-      } else {
-        // If sender isn't in neighbors, means that is a false positive
-        auto known = std::find(neighbors.begin(), neighbors.end(), message);
-        if (known == neighbors.end()) {
-          // Gives extra time before suspecting the emitter
-          delta_to = 2 * delta;
-          // Resets current emitter observer
-          int new_obs = message;
-          MPI_Isend(&new_obs, 1, MPI_INT, emitter, TAG_HB_NEWOBS, hb_comm,
-                    &send_request);
-          MPI_Request_free(&send_request);
-          // Resets current emitter to the old one
-          emitter = message;
-          // Broadcast the inclusion of the false positive
-          hbBroadcast(HB_BC_ALIVE, emitter, n_pos);
+      int tag = status.MPI_TAG;
+      switch (tag) {
+      case TAG_HB_ALIVE: {
+        if (message[0] == emitter) {
+          hbResetObsTimeout();
+        } else {
+          // If sender isn't in neighbors, means that is a false positive
+          auto known = std::find(neighbors.begin(), neighbors.end(), message[0]);
+          if (known == neighbors.end()) {
+            // Gives extra time before suspecting the emitter
+            delta_to = 2 * delta;
+            // Resets current emitter observer
+            int new_obs[3] = {message[0], -1, -1};
+            MPI_Isend(new_obs, 3, MPI_INT, emitter, TAG_HB_NEWOBS, hb_comm,
+                      &send_request);
+            MPI_Request_free(&send_request);
+            // Resets current emitter to the old one
+            emitter = message[0];
+            // Broadcast the inclusion of the false positive
+            hbBroadcast(HB_BC_ALIVE, emitter, n_pos);
+          }
         }
+        FTDEBUG("[Rank %d FT] Received alive message from %d\n", rank, message[0]);
+      } break;
+      case TAG_HB_NEWOBS: {
+        hbSetNewObs(message[0]);
+        FTDEBUG("[Rank %d FT] %d is the new observer\n", rank, message[0]);
+      } break;
+      case TAG_HB_BCAST: {
+        auto valid_source =
+            std::find(neighbors.begin(), neighbors.end(), status.MPI_SOURCE);
+        auto unknown =
+            std::find(neighbors.begin(), neighbors.end(), message[1]);
+        switch (message[0]) {
+        case HB_BC_FAILURE:
+          // Only replicates if failure is unknown and from valid source
+          if (unknown != neighbors.end() && valid_source != neighbors.end()) {
+            hbBroadcast(HB_BC_FAILURE, message[1], message[2]);
+            FTDEBUG("[Rank %d FT] Received broadcast with failed node: %d\n",
+                    rank, message[1]);
+          }
+          break;
+        case HB_BC_ALIVE:
+          // Only replicates if process is not added in neighbors yet
+          if (unknown == neighbors.end() && valid_source != neighbors.end()) {
+            hbBroadcast(HB_BC_ALIVE, message[1], message[2]);
+            FTDEBUG("[Rank %d FT] Received broadcast of false positive: %d\n",
+                    rank, message[1]);
+          }
+          break;
+        case HB_BC_REPAIR:
+          if (c_state == CommState::INVALID &&
+              valid_source != neighbors.end()) {
+            if (hb_need_repair == false) {
+              hbBroadcast(HB_BC_REPAIR, message[1], message[2]);
+              FTDEBUG(
+                  "[Rank %d FT] Received broadcast of repair operation: %d\n",
+                  rank, message);
+            }
+          }
+          break;
+        default:
+          FTDEBUG("[Rank %d FT] Ignoring unknown broadcast\n", rank);
+          break;
+        }
+      } break;
       }
-      FTDEBUG("[Rank %d FT] Received alive message from %d\n", rank, message);
     }
 
-    // If no alive messages were received before suspect time, it is a failure
     if (delta_to <= 0)
       hbFindDeadNode();
     else
       delta_to--;
 
-    // Check if there is a new observer, occurs when the current observer fails
-    flag = MPIw_IProbeRecv(&message, 1, MPI_INT, MPI_ANY_SOURCE, TAG_HB_NEWOBS,
-                           hb_comm, &status);
-    if (!flag) {
-      hbSetNewObs(message);
-      FTDEBUG("[Rank %d FT] %d is the new observer\n", rank, message);
-    }
-
-    // Check if received a broadcast of failed node
-    flag = MPIw_IProbeRecv(bc_message, 3, MPI_INT, MPI_ANY_SOURCE, TAG_HB_BCAST,
-                           hb_comm, &status);
-    if (!flag) {
-      auto valid_source =
-          std::find(neighbors.begin(), neighbors.end(), status.MPI_SOURCE);
-      auto unknown =
-          std::find(neighbors.begin(), neighbors.end(), bc_message[1]);
-      switch (bc_message[0]) {
-      case HB_BC_FAILURE:
-        // Only replicates if failure is unknown and from valid source
-        if (unknown != neighbors.end() && valid_source != neighbors.end()) {
-          hbBroadcast(HB_BC_FAILURE, bc_message[1], bc_message[2]);
-          FTDEBUG("[Rank %d FT] Received broadcast with failed node: %d\n",
-                  rank, bc_message[1]);
-        }
-        break;
-      case HB_BC_ALIVE:
-        // Only replicates if process is not added in neighbors yet
-        if (unknown == neighbors.end() && valid_source != neighbors.end()) {
-          hbBroadcast(HB_BC_ALIVE, bc_message[1], bc_message[2]);
-          FTDEBUG("[Rank %d FT] Received broadcast of false positive: %d\n",
-                  rank, bc_message[1]);
-        }
-        break;
-      case HB_BC_REPAIR:
-        if (c_state == CommState::INVALID && valid_source != neighbors.end()) {
-          if (hb_need_repair == false) {
-            hbBroadcast(HB_BC_REPAIR, bc_message[1], bc_message[2]);
-            FTDEBUG("[Rank %d FT] Received broadcast of repair operation: %d\n",
-                    rank, message);
-          }
-        }
-        break;
-      default:
-        FTDEBUG("[Rank %d FT] Ignoring unknown broadcast\n", rank);
-        break;
-      }
-    }
     // Heartbeat thread time step
     std::this_thread::sleep_for(std::chrono::milliseconds(time_step));
   }
-}
+} // namespace ft
 
 /// Sends a message to the observer saying it is alive
 void FaultTolerance::hbSendAlive() {
-  eta_to = eta;
-  int alive = rank;
-  MPI_Isend(&alive, 1, MPI_INT, observer, TAG_HB_ALIVE, hb_comm, &send_request);
-  MPI_Request_free(&send_request);
+  while (!hb_done) {
+    int alive[3] = {rank, -1, -1};
+    MPI_Isend(alive, 3, MPI_INT, observer, TAG_HB_ALIVE, hb_comm,
+              &send_request);
+    MPI_Request_free(&send_request);
+    std::this_thread::sleep_for(std::chrono::milliseconds(eta));
+  }
 }
 
 /// Resets suspect time upon receiving alive messages from emitter
@@ -344,8 +345,8 @@ void FaultTolerance::hbFindDeadNode() {
 
   // Find a new emitter and send a message saying its new observer
   emitter = hbFindEmitter();
-  int new_obs = rank;
-  MPI_Isend(&new_obs, 1, MPI_INT, emitter, TAG_HB_NEWOBS, hb_comm,
+  int new_obs[3] = {rank, -1, -1};
+  MPI_Isend(new_obs, 3, MPI_INT, emitter, TAG_HB_NEWOBS, hb_comm,
             &send_request);
   MPI_Request_free(&send_request);
   // Extend delta_to 5 times if the emitter is 0, since rank 0 has no recovery
@@ -372,14 +373,14 @@ void FaultTolerance::hbSetNewObs(int new_obs) {
 
 /// Internal broadcast for heartbeat
 void FaultTolerance::hbBroadcast(int type, int value, int pos) {
-  int bc_message[3] = {type, value, pos};
+  int message[3] = {type, value, pos};
 
   // Does the broadcast
   for (std::size_t i = 1; i < neighbors.size(); i *= 2) {
     int index = (n_pos + i) % neighbors.size();
     if (neighbors[index] != rank) {
       if (type != HB_BC_FAILURE || neighbors[index] != value) {
-        MPI_Isend(bc_message, 3, MPI_INT, neighbors[index], TAG_HB_BCAST,
+        MPI_Isend(message, 3, MPI_INT, neighbors[index], TAG_HB_BCAST,
                   hb_comm, &send_request);
         MPI_Request_free(&send_request);
       }

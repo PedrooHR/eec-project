@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
+project(FTLIB-NEW)
+
 set(src_files 
     ft.cpp
 )
