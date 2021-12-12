@@ -28,9 +28,17 @@ This folder contains the weekly reports, the final report, any article about the
   * OBS: Change in the proposal (A6 is moved to W8 and A4 & A5 are extended one week each)
 
 **Week Six**
+  * Characterization of the changes and proposals
+  * Characterize applications and the changes for different parameters
 
 **Week Seven**
+  * Characterization of the changes and proposals
+  * Characterize applications and the changes for different parameters (continuing)
+  * Evaluating new results
 
 **Week Eight**
+  * Evaluating new results
+  * Working on final reports and presentation
 
 **Week Nine**
+  * Working on final reports and presentation

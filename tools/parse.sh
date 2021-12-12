@@ -29,10 +29,11 @@ for app in $applications; do
                 pkg=$(cat $file | grep 'pkg') && pkg=($pkg) && pkg=${pkg[0]} && pkg_sum=$(calc $pkg_sum + $pkg)
                 ram=$(cat $file | grep 'ram') && ram=($ram) && ram=${ram[0]} && ram_sum=$(calc $ram_sum + $ram)
                 time=$(cat $file | grep 'time') && time=($time) && time=${time[0]} && time_sum=$(calc $time_sum + $time)
+                count=$(calc $count + 1.0)
             done
-            pkg_sum=$(calc $pkg_sum / 10.0)
-            ram_sum=$(calc $ram_sum / 10.0)
-            time_sum=$(calc $time_sum / 10.0)
+            pkg_sum=$(calc $pkg_sum / $count)
+            ram_sum=$(calc $ram_sum / $count)
+            time_sum=$(calc $time_sum / $count)
             echo $pkg_sum  >> ${sce}sorgan1-report.txt
             echo $ram_sum  >> ${sce}sorgan1-report.txt
             echo $time_sum >> ${sce}sorgan1-report.txt
@@ -46,10 +47,11 @@ for app in $applications; do
                 pkg=$(cat $file | grep 'pkg') && pkg=($pkg) && pkg=${pkg[0]} && pkg_sum=$(calc $pkg_sum + $pkg)
                 ram=$(cat $file | grep 'ram') && ram=($ram) && ram=${ram[0]} && ram_sum=$(calc $ram_sum + $ram)
                 time=$(cat $file | grep 'time') && time=($time) && time=${time[0]} && time_sum=$(calc $time_sum + $time)
+                count=$(calc $count + 1.0)
             done
-            pkg_sum=$(calc $pkg_sum / 10.0)
-            ram_sum=$(calc $ram_sum / 10.0)
-            time_sum=$(calc $time_sum / 10.0)
+            pkg_sum=$(calc $pkg_sum / $count)
+            ram_sum=$(calc $ram_sum / $count)
+            time_sum=$(calc $time_sum / $count)
             echo $pkg_sum  >> ${sce}sorgan2-report.txt
             echo $ram_sum  >> ${sce}sorgan2-report.txt
             echo $time_sum >> ${sce}sorgan2-report.txt
@@ -63,10 +65,11 @@ for app in $applications; do
                 pkg=$(cat $file | grep 'pkg') && pkg=($pkg) && pkg=${pkg[0]} && pkg_sum=$(calc $pkg_sum + $pkg)
                 ram=$(cat $file | grep 'ram') && ram=($ram) && ram=${ram[0]} && ram_sum=$(calc $ram_sum + $ram)
                 time=$(cat $file | grep 'time') && time=($time) && time=${time[0]} && time_sum=$(calc $time_sum + $time)
+                count=$(calc $count + 1.0)
             done
-            pkg_sum=$(calc $pkg_sum / 10.0)
-            ram_sum=$(calc $ram_sum / 10.0)
-            time_sum=$(calc $time_sum / 10.0)
+            pkg_sum=$(calc $pkg_sum / $count)
+            ram_sum=$(calc $ram_sum / $count)
+            time_sum=$(calc $time_sum / $count)
             echo $pkg_sum  >> ${sce}sorgan3-report.txt
             echo $ram_sum  >> ${sce}sorgan3-report.txt
             echo $time_sum >> ${sce}sorgan3-report.txt
